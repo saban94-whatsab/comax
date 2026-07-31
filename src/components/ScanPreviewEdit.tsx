@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FilterMode, CropRect } from '../types';
+import { FilterMode, CropRect, ReturnItem, CraneLog, SignatureAnalysis } from '../types';
 import { processDocumentImage, autoDetectEdges } from '../utils/imageProcessor';
-import { Sparkles, Crop, RotateCw, CheckCircle, RefreshCw, Layers, FileCheck, Sliders, Eye } from 'lucide-react';
+import { Sparkles, Crop, RotateCw, CheckCircle, RefreshCw, Layers, FileCheck, Sliders, Eye, AlertTriangle, Clock, PackageX, PenTool, CheckCircle2 } from 'lucide-react';
+import { ReturnReasonModal } from './ReturnReasonModal';
 
 interface ScanPreviewEditProps {
   originalImageBase64: string;
@@ -14,7 +15,10 @@ interface ScanPreviewEditProps {
     filterMode: FilterMode,
     cropRect: CropRect,
     rotation: number,
-    ocrData?: any
+    ocrData?: any,
+    signatureAnalysis?: SignatureAnalysis,
+    craneLog?: CraneLog,
+    returnItems?: ReturnItem[]
   ) => void;
   isProcessing: boolean;
 }
@@ -34,6 +38,27 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
   const [processedPreview, setProcessedPreview] = useState<string>(originalImageBase64);
   const [isUpdatingPreview, setIsUpdatingPreview] = useState<boolean>(false);
   const [showCropControls, setShowCropControls] = useState<boolean>(false);
+
+  // Noa AI Signature Detection
+  const [signatureAnalysis, setSignatureAnalysis] = useState<SignatureAnalysis>({
+    hasSignature: false,
+    confidence: 0.35,
+    noaMessage: `${driverName}, מציעה להחתים את הלקוח מחדש ולכתוב שם בשדות המתאימים`,
+    signatureBox: { x: 45, y: 72, width: 40, height: 18 },
+  });
+  const [showSignaturePointer, setShowSignaturePointer] = useState<boolean>(true);
+
+  // Crane Operation Times
+  const [craneOpenTime, setCraneOpenTime] = useState<string>('14:10');
+  const [craneCloseTime, setCraneCloseTime] = useState<string>('14:35');
+  const [craneWarning, setCraneWarning] = useState<string | null>(null);
+
+  // Return Items & Deposits
+  const [returnBalesCount, setReturnBalesCount] = useState<number>(0);
+  const [returnPalletsCount, setReturnPalletsCount] = useState<number>(0);
+  const [returnBarrelsCount, setReturnBarrelsCount] = useState<number>(0);
+  const [returnReason, setReturnReason] = useState<string>('');
+  const [showReturnReasonModal, setShowReturnReasonModal] = useState<boolean>(false);
 
   // Gemini OCR States
   const [isOcrRunning, setIsOcrRunning] = useState<boolean>(false);
@@ -87,6 +112,16 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
     setRotation((prev) => (prev + 90) % 360);
   };
 
+  const toggleSignatureStatus = () => {
+    setSignatureAnalysis((prev) => ({
+      ...prev,
+      hasSignature: !prev.hasSignature,
+      noaMessage: !prev.hasSignature
+        ? 'חתימת לקוח זוהתה בהצלחה'
+        : `${driverName}, מציעה להחתים את הלקוח מחדש ולכתוב שם בשדות המתאימים`,
+    }));
+  };
+
   // Run server-side Gemini OCR extraction
   const handleRunGeminiOcr = async () => {
     setIsOcrRunning(true);
@@ -111,8 +146,48 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
     }
   };
 
+  const totalReturnCount = returnBalesCount + returnPalletsCount + returnBarrelsCount;
+
   const handleConfirm = () => {
-    onConfirmScan(processedPreview, filterMode, cropRect, rotation, ocrResult);
+    // Check crane operational time validation
+    if (!craneOpenTime || !craneCloseTime) {
+      setCraneWarning(`${driverName}, אנא אמת את זמני פתיחת וסגירת המנוף`);
+    } else {
+      setCraneWarning(null);
+    }
+
+    // Check large quantity return requirement (>= 5 items)
+    if (totalReturnCount >= 5 && (!returnReason || returnReason.trim().length < 3)) {
+      setShowReturnReasonModal(true);
+      return;
+    }
+
+    executeSubmission(returnReason);
+  };
+
+  const executeSubmission = (finalReturnReason: string) => {
+    const returnItems: ReturnItem[] = [];
+    if (returnBalesCount > 0) returnItems.push({ id: 'bales', type: 'בלות', count: returnBalesCount, reason: finalReturnReason });
+    if (returnPalletsCount > 0) returnItems.push({ id: 'pallets', type: 'משטחים', count: returnPalletsCount, reason: finalReturnReason });
+    if (returnBarrelsCount > 0) returnItems.push({ id: 'barrels', type: 'חביות', count: returnBarrelsCount, reason: finalReturnReason });
+
+    const craneLog: CraneLog = {
+      openTime: craneOpenTime,
+      closeTime: craneCloseTime,
+      durationMinutes: 25,
+      isValid: true,
+    };
+
+    onConfirmScan(
+      processedPreview,
+      filterMode,
+      cropRect,
+      rotation,
+      ocrResult,
+      signatureAnalysis,
+      craneLog,
+      returnItems
+    );
   };
 
   return (
@@ -139,7 +214,43 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
         </button>
       </div>
 
-      {/* Main Image Viewport with Crop box overlay */}
+      {/* Noa AI Signature Status Banner & Pointer toggle */}
+      <div className={`p-3.5 rounded-2xl border text-xs transition flex items-start gap-3 ${
+        signatureAnalysis.hasSignature
+          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+          : 'bg-amber-50 border-amber-300 text-amber-950'
+      }`}>
+        <div className={`p-2 rounded-xl shrink-0 ${
+          signatureAnalysis.hasSignature ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+        }`}>
+          <PenTool className="w-5 h-5" />
+        </div>
+        <div className="flex-1 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="font-extrabold flex items-center gap-1.5 text-sm">
+              <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
+              <span>נועה AI - זיהוי חתימת לקוח:</span>
+            </span>
+            <button
+              type="button"
+              onClick={toggleSignatureStatus}
+              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-800 rounded-lg text-[11px] font-bold border border-slate-200 shadow-xs"
+            >
+              {signatureAnalysis.hasSignature ? 'שנה ל: חסרת חתימה ⚠️' : 'אישור חתימה תקינה ✅'}
+            </button>
+          </div>
+          <p className="font-bold text-xs">
+            {signatureAnalysis.noaMessage}
+          </p>
+          {!signatureAnalysis.hasSignature && (
+            <p className="text-[11px] text-amber-800 font-medium">
+              הכוונה ויזואלית: ראה מסגרת כתומה מהבהבת על גבי התעודה המצביעה בדיוק היכן נפלה החתימה.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Main Image Viewport with Signature Pointer & Crop Overlay */}
       <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 flex items-center justify-center p-2 min-h-[320px] max-h-[500px]">
         {isUpdatingPreview && (
           <div className="absolute inset-0 z-20 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center text-xs text-white gap-2 font-bold">
@@ -171,7 +282,123 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
               </div>
             </div>
           )}
+
+          {/* Noa AI Animated Signature Pointer Overlay */}
+          {!signatureAnalysis.hasSignature && showSignaturePointer && (
+            <div
+              className="absolute border-3 border-amber-500 bg-amber-500/20 rounded-xl animate-bounce pointer-events-none flex flex-col items-center justify-center shadow-lg"
+              style={{
+                top: `${signatureAnalysis.signatureBox?.y || 70}%`,
+                left: `${signatureAnalysis.signatureBox?.x || 45}%`,
+                width: `${signatureAnalysis.signatureBox?.width || 40}%`,
+                height: `${signatureAnalysis.signatureBox?.height || 20}%`,
+              }}
+            >
+              <div className="bg-amber-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                <span>כאן חסרה חתימת הלקוח</span>
+              </div>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Crane Operational Times Module */}
+      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-slate-800 flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-blue-600" />
+            <span>נועה AI - ניתוח זמני פתיחה/סגירת מנוף:</span>
+          </span>
+          <span className="text-[11px] font-bold text-slate-500">משך מנוף משוער: 25 דקות</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <label className="text-[11px] font-bold text-slate-700 block mb-1">שעת פתיחת מנוף:</label>
+            <input
+              type="time"
+              value={craneOpenTime}
+              onChange={(e) => setCraneOpenTime(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-bold focus:outline-none focus:border-blue-600"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold text-slate-700 block mb-1">שעת סגירת מנוף:</label>
+            <input
+              type="time"
+              value={craneCloseTime}
+              onChange={(e) => setCraneCloseTime(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-bold focus:outline-none focus:border-blue-600"
+            />
+          </div>
+        </div>
+
+        {craneWarning && (
+          <div className="text-xs font-bold text-amber-800 bg-amber-100 p-2.5 rounded-xl border border-amber-300">
+            ⚠️ {craneWarning}
+          </div>
+        )}
+      </div>
+
+      {/* Return & Deposit Control Module */}
+      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-slate-800 flex items-center gap-1.5">
+            <PackageX className="w-4 h-4 text-amber-600" />
+            <span>בקרת החזרות ופקדונות בכמויות גדולות:</span>
+          </span>
+          <span className="text-[11px] font-bold text-slate-600">
+            סה"כ פריטים להחזרה: <span className="text-amber-800 font-extrabold">{totalReturnCount}</span>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1">
+            <span className="text-xs font-bold text-slate-700 block">בלות</span>
+            <input
+              type="number"
+              min="0"
+              value={returnBalesCount}
+              onChange={(e) => setReturnBalesCount(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-full text-center bg-slate-50 border border-slate-200 rounded-lg py-1 font-black text-sm text-slate-900"
+            />
+          </div>
+
+          <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1">
+            <span className="text-xs font-bold text-slate-700 block">משטחים</span>
+            <input
+              type="number"
+              min="0"
+              value={returnPalletsCount}
+              onChange={(e) => setReturnPalletsCount(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-full text-center bg-slate-50 border border-slate-200 rounded-lg py-1 font-black text-sm text-slate-900"
+            />
+          </div>
+
+          <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-center space-y-1">
+            <span className="text-xs font-bold text-slate-700 block">חביות</span>
+            <input
+              type="number"
+              min="0"
+              value={returnBarrelsCount}
+              onChange={(e) => setReturnBarrelsCount(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-full text-center bg-slate-50 border border-slate-200 rounded-lg py-1 font-black text-sm text-slate-900"
+            />
+          </div>
+        </div>
+
+        {totalReturnCount >= 5 && (
+          <div className="bg-amber-100 border border-amber-300 p-2.5 rounded-xl text-xs text-amber-900 font-bold flex items-center justify-between">
+            <span>כמות חריגה ({totalReturnCount} פריטים) - נדרש תיעוד מילולי של סיבת ההחזרה!</span>
+            {returnReason ? (
+              <span className="text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> סופקה סיבה</span>
+            ) : (
+              <span className="text-amber-800 animate-pulse">נדרש מילוי בעת אישור</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Document Color Modes & Edge Detection Bar */}
@@ -220,7 +447,7 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
               📄 שחור-לבן מקצועי
               {filterMode === 'bw' && <CheckCircle className="w-3.5 h-3.5 text-blue-600" />}
             </span>
-            <span className="text-[10px] text-slate-500 font-medium">ניקוי רקע למסמכים (Document Mode)</span>
+            <span className="text-[10px] text-slate-500 font-medium">ניקוי רקע למסמכים</span>
           </button>
 
           <button
@@ -270,49 +497,6 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
         </div>
       </div>
 
-      {/* Manual Crop Slider Controls if open */}
-      {showCropControls && (
-        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
-          <div className="font-bold text-slate-700">כוונון חיתוך ידני (קצוות המסמך %):</div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] text-slate-500 block">שוליים מלמעלה:</label>
-              <input
-                type="range"
-                min="0"
-                max="30"
-                value={cropRect.y}
-                onChange={(e) =>
-                  setCropRect((prev) => ({
-                    ...prev,
-                    y: Number(e.target.value),
-                    height: Math.min(100 - Number(e.target.value), prev.height),
-                  }))
-                }
-                className="w-full accent-blue-600 h-1.5 bg-slate-200 rounded-lg"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] text-slate-500 block">גובה חיתוך:</label>
-              <input
-                type="range"
-                min="50"
-                max="100"
-                value={cropRect.height}
-                onChange={(e) =>
-                  setCropRect((prev) => ({
-                    ...prev,
-                    height: Number(e.target.value),
-                  }))
-                }
-                className="w-full accent-blue-600 h-1.5 bg-slate-200 rounded-lg"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Gemini AI OCR Scanner Card */}
       <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-4 space-y-2.5">
         <div className="flex items-center justify-between">
@@ -358,18 +542,6 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
                 <span className="text-slate-500">שם לקוח: </span>
                 <span className="font-bold text-slate-900">{ocrResult.clientName || 'לא זוהה'}</span>
               </div>
-              {ocrResult.deliveryDate && (
-                <div>
-                  <span className="text-slate-500">תאריך: </span>
-                  <span className="text-slate-800 font-medium">{ocrResult.deliveryDate}</span>
-                </div>
-              )}
-              {ocrResult.itemsSummary && (
-                <div className="col-span-2">
-                  <span className="text-slate-500">תכולה: </span>
-                  <span className="text-slate-800 font-medium">{ocrResult.itemsSummary}</span>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -393,7 +565,7 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
           type="button"
           onClick={handleConfirm}
           disabled={isProcessing}
-          className="w-full sm:w-2/3 py-3.5 px-6 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-base shadow-xl shadow-blue-200 transition flex items-center justify-center gap-2 transform active:scale-98 border border-blue-500"
+          className="w-full sm:w-2/3 py-3.5 px-6 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-base shadow-xl shadow-blue-200 transition flex items-center justify-center gap-2 transform active:scale-98 border border-blue-500 cursor-pointer"
         >
           {isProcessing ? (
             <>
@@ -408,6 +580,23 @@ export const ScanPreviewEdit: React.FC<ScanPreviewEditProps> = ({
           )}
         </button>
       </div>
+
+      {/* Mandatory Large Quantity Return Reason Modal */}
+      {showReturnReasonModal && (
+        <ReturnReasonModal
+          driver={{ id: 'd1', name: driverName, phone: '050-0000000' }}
+          orderNumber={orderNumber || '6713005'}
+          itemType="בלות/משטחים"
+          count={totalReturnCount}
+          onConfirm={(reason) => {
+            setReturnReason(reason);
+            setShowReturnReasonModal(false);
+            executeSubmission(reason);
+          }}
+          onCancel={() => setShowReturnReasonModal(false)}
+        />
+      )}
     </div>
   );
 };
+
