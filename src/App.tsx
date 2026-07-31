@@ -28,16 +28,18 @@ import {
 } from './utils/storage';
 import { generateDocumentPdf } from './utils/pdfGenerator';
 import { playDriverNotificationSound } from './utils/audioAlert';
-import { Header } from './components/Header';
-import { DriverLoginModal } from './components/DriverLoginModal';
-import { WorkOrderSelector } from './components/WorkOrderSelector';
-import { CameraScanner } from './components/CameraScanner';
-import { ScanPreviewEdit } from './components/ScanPreviewEdit';
-import { AppsScriptModal } from './components/AppsScriptModal';
-import { OfflineOutboxDrawer } from './components/OfflineOutboxDrawer';
-import { ScansHistoryModal } from './components/ScansHistoryModal';
-import { DriverDatabaseModal } from './components/DriverDatabaseModal';
-import { SuccessStatusNotification } from './components/SuccessStatusNotification';
+import {
+  Header,
+  DriverLoginModal,
+  WorkOrderSelector,
+  CameraScanner,
+  ScanPreviewEdit,
+  AppsScriptModal,
+  OfflineOutboxDrawer,
+  ScansHistoryModal,
+  DriverDatabaseModal,
+  SuccessStatusNotification,
+} from './components';
 import { Truck, CheckCircle2, CloudUpload, History, Layers, Mail, Sparkles, Database, Bell } from 'lucide-react';
 
 export default function App() {
