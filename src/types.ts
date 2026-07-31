@@ -25,6 +25,27 @@ export interface CropRect {
   height: number;
 }
 
+export interface ReturnItem {
+  id: string;
+  type: 'בלות' | 'משטחים' | 'חביות' | 'אחר';
+  count: number;
+  reason?: string;
+}
+
+export interface CraneLog {
+  openTime?: string;
+  closeTime?: string;
+  durationMinutes?: number;
+  isValid?: boolean;
+}
+
+export interface SignatureAnalysis {
+  hasSignature: boolean;
+  confidence: number;
+  noaMessage: string;
+  signatureBox?: { x: number; y: number; width: number; height: number };
+}
+
 export interface DocumentScan {
   id: string;
   driverName: string;
@@ -46,6 +67,9 @@ export interface DocumentScan {
     deliveryDate?: string;
     itemsSummary?: string;
   };
+  signatureAnalysis?: SignatureAnalysis;
+  craneLog?: CraneLog;
+  returnItems?: ReturnItem[];
 }
 
 export interface AppsScriptConfig {
