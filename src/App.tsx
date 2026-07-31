@@ -12,6 +12,8 @@ import {
 } from './types';
 import {
   getSavedDriver,
+  saveDriverSession,
+  INITIAL_DRIVERS,
   getWorkOrders,
   saveWorkOrders,
   markWorkOrderScanned,
@@ -82,11 +84,12 @@ export default function App() {
 
   // Load initial data from LocalStorage
   useEffect(() => {
-    const savedDriver = getSavedDriver();
-    setDriver(savedDriver);
+    let savedDriver = getSavedDriver();
     if (!savedDriver) {
-      setShowDriverModal(true);
+      savedDriver = INITIAL_DRIVERS[0];
+      saveDriverSession(savedDriver);
     }
+    setDriver(savedDriver);
 
     const loadedOrders = getWorkOrders();
     setWorkOrders(loadedOrders);
