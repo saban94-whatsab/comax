@@ -1,6 +1,6 @@
 import React from 'react';
 import { Driver, AppsScriptConfig } from '../types';
-import { Truck, Wifi, WifiOff, CloudUpload, Settings, UserCheck, RefreshCw, History } from 'lucide-react';
+import { Truck, Wifi, WifiOff, CloudUpload, Settings, UserCheck, RefreshCw, History, Database } from 'lucide-react';
 
 interface HeaderProps {
   currentDriver: Driver | null;
@@ -11,6 +11,7 @@ interface HeaderProps {
   onOpenConfigModal: () => void;
   onOpenOutboxModal: () => void;
   onOpenHistoryModal: () => void;
+  onOpenDatabaseModal: () => void;
   onSyncNow: () => void;
   isSyncing: boolean;
 }
@@ -24,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenConfigModal,
   onOpenOutboxModal,
   onOpenHistoryModal,
+  onOpenDatabaseModal,
   onSyncNow,
   isSyncing,
 }) => {
@@ -32,15 +34,15 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-4xl mx-auto px-5 py-3.5 flex items-center justify-between gap-3">
         {/* App Title & Driver Info */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black shadow-md shadow-blue-200">
+          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-black shadow-md shadow-blue-200">
             <Truck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-tight tracking-tight text-slate-900 flex items-center gap-1.5">
-              סריקת תעודות משלוח
+            <h1 className="font-extrabold text-lg leading-tight tracking-tight text-slate-900 flex items-center gap-1.5">
+              SabanOS DeliveryMaster
             </h1>
-            <p className="text-xs text-slate-500 hidden sm:block">
-              מערכת סריקה, חיתוך וסנכרון לנהגים בענן
+            <p className="text-xs text-slate-500 hidden sm:block font-medium">
+              סריקת תעודות משלוח, ניתוח מנוף ובקרת החזרות (חכמת & עלי)
             </p>
           </div>
         </div>
@@ -51,13 +53,23 @@ export const Header: React.FC<HeaderProps> = ({
           {currentDriver && (
             <button
               onClick={onOpenDriverModal}
-              className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-full text-xs font-semibold text-slate-700 border border-slate-200 transition"
+              className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full text-xs font-bold text-blue-900 border border-blue-200 transition"
               title="לחץ להחלפת נהג"
             >
               <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-              <span className="max-w-[90px] truncate text-slate-900">{currentDriver.name}</span>
+              <span className="max-w-[90px] truncate">{currentDriver.name}</span>
             </button>
           )}
+
+          {/* Database Viewer Button */}
+          <button
+            onClick={onOpenDatabaseModal}
+            className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition flex items-center gap-1 text-xs font-bold"
+            title="פתח בסיס נתונים וטאבים לנהגים"
+          >
+            <Database className="w-4 h-4 text-blue-600" />
+            <span className="hidden md:inline">מרכז שליטה</span>
+          </button>
 
           {/* Connection Status */}
           <div
