@@ -8,6 +8,10 @@ export function playDriverNotificationSound() {
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
 
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
     // Play first tone (G5 - 783.99 Hz)
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
