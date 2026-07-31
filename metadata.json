@@ -1,0 +1,6 @@
+{
+  "name": "סריקת תעודות משלוח לנהגים",
+  "description": "אפליקציית PWA לסריקת תעודות משלוח, חיתוך ועיבוד מסמכים, המרה ל-PDF וסנכרון ל-Google Drive ו-Google Sheets כולל מצב אופליין לנהגים",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
