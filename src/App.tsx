@@ -6,6 +6,9 @@ import {
   AppsScriptConfig,
   FilterMode,
   CropRect,
+  SignatureAnalysis,
+  CraneLog,
+  ReturnItem,
 } from './types';
 import {
   getSavedDriver,
@@ -22,6 +25,7 @@ import {
   saveRecentScan,
 } from './utils/storage';
 import { generateDocumentPdf } from './utils/pdfGenerator';
+import { playDriverNotificationSound } from './utils/audioAlert';
 import { Header } from './components/Header';
 import { DriverLoginModal } from './components/DriverLoginModal';
 import { WorkOrderSelector } from './components/WorkOrderSelector';
@@ -30,8 +34,9 @@ import { ScanPreviewEdit } from './components/ScanPreviewEdit';
 import { AppsScriptModal } from './components/AppsScriptModal';
 import { OfflineOutboxDrawer } from './components/OfflineOutboxDrawer';
 import { ScansHistoryModal } from './components/ScansHistoryModal';
+import { DriverDatabaseModal } from './components/DriverDatabaseModal';
 import { SuccessStatusNotification } from './components/SuccessStatusNotification';
-import { Truck, CheckCircle2, CloudUpload, History, Layers } from 'lucide-react';
+import { Truck, CheckCircle2, CloudUpload, History, Layers, Mail, Sparkles, Database, Bell } from 'lucide-react';
 
 export default function App() {
   // State initialization
@@ -54,6 +59,15 @@ export default function App() {
   const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
   const [showOutboxModal, setShowOutboxModal] = useState<boolean>(false);
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
+  const [showDatabaseModal, setShowDatabaseModal] = useState<boolean>(false);
+
+  // Comax Mail Alert Toast
+  const [comaxAlert, setComaxAlert] = useState<{
+    show: boolean;
+    orderNumber: string;
+    driverName: string;
+    clientName: string;
+  } | null>(null);
 
   // Upload Notification Modal state
   const [notification, setNotification] = useState<{
@@ -107,6 +121,38 @@ export default function App() {
     };
   }, []);
 
+  // Driver Change Handler with Audio Alert
+  const handleSelectDriver = (d: Driver) => {
+    setDriver(d);
+    playDriverNotificationSound();
+  };
+
+  // Simulate Comax Mail Listener receiving a new delivery note
+  const handleSimulateComaxMail = () => {
+    const randomNum = Math.floor(1000000 + Math.random() * 9000000).toString();
+    const assignedDriver = driver?.name || 'חכמת';
+    const newOrder: WorkOrder = {
+      id: `wo-${randomNum}`,
+      orderNumber: randomNum,
+      clientName: 'קומקס - מלי מילר (Comax PDF)',
+      address: 'אזור תעשייה עטרות, ירושלים',
+      deliveryDate: new Date().toISOString().split('T')[0],
+      itemsCount: 5,
+      status: 'pending',
+    };
+
+    handleAddNewOrder(newOrder);
+    setSelectedOrderNumber(randomNum);
+    playDriverNotificationSound();
+
+    setComaxAlert({
+      show: true,
+      orderNumber: randomNum,
+      driverName: assignedDriver,
+      clientName: newOrder.clientName,
+    });
+  };
+
   // Work order selection handler
   const handleSelectWorkOrder = (order: WorkOrder) => {
     setSelectedOrderNumber(order.orderNumber);
@@ -129,7 +175,10 @@ export default function App() {
     filterMode: FilterMode,
     cropRect: CropRect,
     rotation: number,
-    ocrData?: any
+    ocrData?: any,
+    signatureAnalysis?: SignatureAnalysis,
+    craneLog?: CraneLog,
+    returnItems?: ReturnItem[]
   ) => {
     if (!driver) {
       setShowDriverModal(true);
@@ -151,6 +200,9 @@ export default function App() {
       status: 'pending_sync',
       timestamp: new Date().toISOString(),
       ocrData,
+      signatureAnalysis,
+      craneLog,
+      returnItems,
     };
 
     // Show loading notification
@@ -300,12 +352,60 @@ export default function App() {
         onOpenConfigModal={() => setShowConfigModal(true)}
         onOpenOutboxModal={() => setShowOutboxModal(true)}
         onOpenHistoryModal={() => setShowHistoryModal(true)}
+        onOpenDatabaseModal={() => setShowDatabaseModal(true)}
         onSyncNow={syncOutboxQueue}
         isSyncing={isSyncingQueue}
       />
 
       {/* Main Container */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 space-y-6">
+        {/* Comax Mail Listener Test Banner */}
+        <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-950 text-white rounded-3xl p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 dir-rtl border border-blue-700">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-xs text-blue-300">
+              <Sparkles className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm">מאזין מיילים אוטומטי - נועה AI (Comax Mail)</span>
+                <span className="bg-emerald-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full">
+                  פעיל 24/7
+                </span>
+              </div>
+              <p className="text-xs text-blue-100/90 font-medium">
+                שולף תעודות משלוח מקומקס, משייך לנהג (חכמת/עלי), ומשמיע חיווי קולי במכשיר!
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSimulateComaxMail}
+            className="w-full sm:w-auto px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold rounded-2xl text-xs transition shadow-md flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+          >
+            <Mail className="w-4 h-4 text-slate-950" />
+            <span>הדמה קבלת מייל מקומקס 📧</span>
+          </button>
+        </div>
+
+        {/* Comax Live Notification Toast */}
+        {comaxAlert && (
+          <div className="bg-amber-500 text-slate-950 p-4 rounded-2xl shadow-xl flex items-center justify-between gap-3 dir-rtl border-2 border-amber-300 animate-bounce">
+            <div className="flex items-center gap-3">
+              <Bell className="w-6 h-6 text-slate-950 animate-pulse" />
+              <div className="text-xs">
+                <span className="font-black text-sm block">תעודה חדשה התקבלה מקומקס!</span>
+                <span>מספר תעודה: #{comaxAlert.orderNumber} | שויכה לנהג: {comaxAlert.driverName}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setComaxAlert(null)}
+              className="bg-slate-950 text-white font-bold px-3 py-1.5 rounded-xl text-xs cursor-pointer"
+            >
+              הבנתי
+            </button>
+          </div>
+        )}
+
         {/* Offline Banner if offline */}
         {!isOnline && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 flex items-center justify-between gap-3 shadow-xs">
@@ -372,7 +472,7 @@ export default function App() {
                         <div className="text-[11px] text-slate-500 truncate font-medium">{scan.driverName}</div>
                         <div className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 mt-0.5">
                           <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>סונכרן לדרייב</span>
+                          <span>סונכרן לדרייב ולגיליון</span>
                         </div>
                       </div>
                     </div>
@@ -403,7 +503,7 @@ export default function App() {
       {showDriverModal && (
         <DriverLoginModal
           currentDriver={driver}
-          onSelectDriver={(d) => setDriver(d)}
+          onSelectDriver={handleSelectDriver}
           onClose={() => setShowDriverModal(false)}
           isInitialRequired={!driver}
         />
@@ -435,6 +535,14 @@ export default function App() {
         <ScansHistoryModal scans={recentScans} onClose={() => setShowHistoryModal(false)} />
       )}
 
+      {showDatabaseModal && (
+        <DriverDatabaseModal
+          scans={recentScans}
+          spreadsheetId="1jFumxFfJ001yDezifLtGlZo3k1IOW0FxO9C_Phd95VE"
+          onClose={() => setShowDatabaseModal(false)}
+        />
+      )}
+
       {notification && (
         <SuccessStatusNotification
           status={notification.status}
@@ -448,3 +556,4 @@ export default function App() {
     </div>
   );
 }
+
